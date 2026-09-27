@@ -1,0 +1,327 @@
+{
+  "name": "Meeting Notes Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -464,
+        64
+      ],
+      "id": "1b6eeda6-af80-46b2-9c72-58943d6179ab",
+      "name": "Telegram Trigger",
+      "webhookId": "546d789d-5f04-4bff-a9ed-62a353613451"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.document?.file_id || $json.message.audio?.file_id || $json.message.voice?.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4a7cfa23-845e-4940-a376-2574262d58cd",
+      "name": "Get a file",
+      "webhookId": "a516c542-6b3b-4057-9b34-f67c4ff755c5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4aa64faa-294d-4f9b-a1c5-b735e45c5a96",
+              "leftValue": "={{ $json.message.document || $json.message.audio || $json.message.voice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -240,
+        64
+      ],
+      "id": "b22c2f51-e639-455d-b9c8-fdb7b727037b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binaryData = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64 = binaryData.toString('base64');\nreturn { json: { audioBase64: base64 } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        0
+      ],
+      "id": "d4d62c6e-984f-4cac-8654-07089e1fdc9a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=Your-Api-Key",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [\n      { \"text\": \"This is a meeting recording. Listen and provide: 1) A brief summary (2-3 sentences), 2) Key decisions made, 3) Action items (who does what). Format exactly as:\\nSummary: <text>\\nDecisions: <text>\\nAction Items: <text>\" },\n      { \"inline_data\": { \"mime_type\": \"audio/mpeg\", \"data\": \"{{ $json.audioBase64 }}\" } }\n    ]\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        384,
+        0
+      ],
+      "id": "19e4a56d-1e60-4c60-851c-9b51438014c4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const text = $json.candidates[0].content.parts[0].text;\n\nconst summary = text.match(/Summary:\\s*(.+?)(?=Decisions:|$)/s)?.[1]?.trim() || '';\nconst decisions = text.match(/Decisions:\\s*(.+?)(?=Action Items:|$)/s)?.[1]?.trim() || '';\nconst actionItems = text.match(/Action Items:\\s*(.+)/s)?.[1]?.trim() || '';\n\nreturn {\n  json: {\n    chatId: $('Telegram Trigger').item.json.message.chat.id,\n    summary,\n    decisions,\n    actionItems\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        0
+      ],
+      "id": "600c0f2d-0af3-48e9-91bd-a2f02f9943ce",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "",
+          "cachedResultUrl": ""
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        736,
+        0
+      ],
+      "id": "a010e6ad-bb13-4348-b1fc-f0cf2bdcce13",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Recording mil gayi hai aur summary tayyar ho gayi hai.  Ab meeting attendees ki emails bhejein (comma se separate karke), taake summary unhein bheji ja sake.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        0
+      ],
+      "id": "9f5d45c1-5797-4d2f-9908-e98f5b590a47",
+      "name": "Send a text message",
+      "webhookId": "a3f07144-70ae-41b1-aec1-1f1c7ae1898b"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "18MrsmhNSMNAWifHGuNu9bqVAqOgKoBux_jDVUvv9rGs",
+          "mode": "list",
+          "cachedResultName": "Pending Meetings",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/18MrsmhNSMNAWifHGuNu9bqVAqOgKoBux_jDVUvv9rGs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/18MrsmhNSMNAWifHGuNu9bqVAqOgKoBux_jDVUvv9rGs/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "ChatID",
+              "lookupValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        160
+      ],
+      "id": "90c3f86d-e69e-46ea-9d38-d55d456c923d",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Telegram Trigger').item.json.message.text }}",
+        "subject": "Meeting Summary & Action Items",
+        "message": "=<p><b>Summary:</b><br>{{ $json.Summary }}</p> <p><b>Decisions:</b><br>{{ $json.Decisions }}</p> <p><b>Action Items:</b><br>{{ $json.ActionItems }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        160
+      ],
+      "id": "09f7c94b-7237-41e8-8c6e-faea8386e378",
+      "name": "Send a message",
+      "webhookId": "2d131ad4-93f1-40eb-890a-488e34a3c158"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "81ee1476-13c0-4a23-889c-bc3ab0efb9d6",
+  "meta": {
+    "instanceId": "1afb6aab3770da28edd93afb11e067ae0dd5545efbb2d08a1dd75a767c9cb8d3"
+  },
+  "nodeGroups": [],
+  "id": "gt3M3HIxUA27eOkN",
+  "tags": []
+}
