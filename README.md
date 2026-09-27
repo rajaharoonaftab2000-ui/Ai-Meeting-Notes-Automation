@@ -47,3 +47,6 @@ This automation can help businesses, teams, and professionals reduce manual note
 Project Status
 
 Completed portfolio project.
+## Demo Video
+
+[Watch the Demo](./Meeting_Notes_Bot_Demo.mp4)
